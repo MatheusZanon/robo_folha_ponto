@@ -2,7 +2,7 @@ def db_config():
     db_config = {
         'host': 'localhost',
         'user': 'root',
-        'password': 'mysql(*&6admin!',
-        'database': 'human_solucoes_rh'
+        'password': 'senhaBD',
+        'database': 'nomeBD'
     }
     return db_config
