@@ -3,6 +3,7 @@ webdriver-manager
 ipykernel
 openpyxl
 pandas
+tabula-py
 
 aniso8601
 click
