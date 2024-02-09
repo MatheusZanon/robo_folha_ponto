@@ -4,6 +4,7 @@ ipykernel
 openpyxl
 pandas
 tabula-py
+python-dotenv
 
 aniso8601
 click
