@@ -3,5 +3,5 @@ from openpyxl import load_workbook
 
 def auto_excel(arquivoExcel):
     wb = load_workbook(filename=arquivoExcel, read_only=True)
-    ws = wb['2023']
+    ws = wb['Planilha1']
     return ws

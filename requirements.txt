@@ -3,6 +3,7 @@ webdriver-manager
 ipykernel
 openpyxl
 pandas
+Pyarrow
 tabula-py
 python-dotenv
 
