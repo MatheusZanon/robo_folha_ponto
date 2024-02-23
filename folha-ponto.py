@@ -11,6 +11,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from time import sleep
+from datetime import date, timedelta
 
 PAGE_TIMEOUT = 5
 ACTION_TIMEOUT = 1
@@ -84,6 +85,7 @@ def rename_files(file, new_name: str = None):
           os.rename(file, new_path)
 
           print(f"Arquivo renomeado para: {new_path}")
+          return new_path
     except FileNotFoundError as not_found_error:
         print(f"Arquivo não encontrado: {not_found_error}")
     except Exception as exc:
@@ -189,41 +191,73 @@ def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, 
       if(nome_cliente_input):
         nome_cliente_input.click()
         nome_cliente_input.send_keys(cliente_nome)
-        input()
-        sleep(1)
+        sleep(5)
         clientes_encontrados = procura_todos_elementos(driver, 'class_name', 'select-option-custom')
         if clientes_encontrados:
           for cliente in clientes_encontrados:
-            if cliente.text.lower() == cliente_nome.lower():
+            print(f"{cliente.text.strip().lower()} - {cliente_nome.strip().lower()}")
+            print(cliente.text.lower() == cliente_nome.lower())
+            if cliente.text.lower().strip() == cliente_nome.lower().strip():
               print(f"Cliente selecionado: {cliente.text}")
-              sleep(1)
               cliente.click()
-              break
+              try:
+                saldo_horas = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showHours"]/label""")
+                if(saldo_horas):
+                  saldo_horas.click()
+              except Exception as e:
+                if isinstance(e, NoSuchElementException):
+                  print('Elemento não encontrado')
+                if isinstance(e, TimeoutException):
+                  print('Tempo de espera excedido')
+
+              try:
+                descanso_semanal = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showDsr"]/label""")
+                if(descanso_semanal):
+                  descanso_semanal.click()
+              except Exception as e:
+                if isinstance(e, NoSuchElementException):
+                  print('Elemento não encontrado')
+                if isinstance(e, TimeoutException):
+                  print('Tempo de espera excedido')
+
+              try:
+                start_date = (date.today() - timedelta(days=7)).strftime("%d%m%Y")
+                end_date = date.today().strftime("%d%m%Y")
+                print(f"Preenchendo datas entre {start_date[:2]}/{start_date[2:4]}/{start_date[4:]} a {end_date[:2]}/{end_date[2:4]}/{end_date[4:]}")
+
+                start_date_input = procura_elemento(driver, 'id', """datepicker-startDate""")
+                if start_date_input:
+                  start_date_input.click()
+                  start_date_input.send_keys(Keys.CONTROL + 'A')
+                  start_date_input.send_keys(Keys.DELETE)
+                  start_date_input.send_keys(start_date)
+                  start_date_input.send_keys(Keys.ESCAPE)
+
+                end_date_input = procura_elemento(driver, 'id', """datepicker-endDate""")
+                if end_date_input:
+                  end_date_input.click()
+                  end_date_input.send_keys(Keys.CONTROL + 'A')
+                  end_date_input.send_keys(Keys.DELETE)
+                  end_date_input.send_keys(end_date)
+                  end_date_input.send_keys(Keys.ESCAPE)
+              except Exception as e:
+                if isinstance(e, NoSuchElementException):
+                  print('Elemento não encontrado')
+                if isinstance(e, TimeoutException):
+                  print('Tempo de espera excedido')
+              
+              folha_de_ponto = download_folha_ponto(driver)
+              sleep(2)               
+              return folha_de_ponto
+          else:
+            print("Nenhum cliente encontrado")
+            return
     except Exception as e:
       if isinstance(e, NoSuchElementException):
         print('Elemento não encontrado')
       if isinstance(e, TimeoutException):
         print(f"Tempo de espera excedido {e.msg}\n{e.stacktrace}")
 
-    try:
-      saldo_horas = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showHours"]/label""")
-      if(saldo_horas):
-        saldo_horas.click()
-    except Exception as e:
-      if isinstance(e, NoSuchElementException):
-        print('Elemento não encontrado')
-      if isinstance(e, TimeoutException):
-        print('Tempo de espera excedido')
-
-    try:
-      descanso_semanal = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showDsr"]/label""")
-      if(descanso_semanal):
-        descanso_semanal.click()
-    except Exception as e:
-      if isinstance(e, NoSuchElementException):
-        print('Elemento não encontrado')
-      if isinstance(e, TimeoutException):
-        print('Tempo de espera excedido')
   except Exception as e:
     print(f"Erro ao preencher folha de ponto: {e}")
     if isinstance(e, NoSuchElementException):
@@ -231,18 +265,7 @@ def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, 
     if isinstance(e, TimeoutException):
       print(f"Tempo de espera excedido {e.msg}\n{e.stacktrace}")
 
-"""def esvazia_folha_ponto(driver):
-  try:
-    if driver.current_url != "https://app.tangerino.com.br/Tangerino/pages/folha-ponto?funcionalidade=24":
-      driver.get("https://app.tangerino.com.br/Tangerino/pages/folha-ponto?funcionalidade=24")
-      sleep(PAGE_TIMEOUT)
-  except Exception as e:
-    if isinstance(e, NoSuchElementException):
-      print('Elemento não encontrado')
-    if isinstance(e, TimeoutException):
-      print('Tempo de espera excedido')"""
-
-def download_folha_ponto(driver, cliente_nome: str = 'Todos'):
+def download_folha_ponto(driver):
   try:
     gerar_button = procura_elemento(driver, 'xpath', """//*[@id="btn-generate-simple"]""")
     if gerar_button:
@@ -301,19 +324,16 @@ def main():
       if embed:
         embed_src = embed.get_attribute('src')
         driver.get(embed_src)
+      print(f"Embed está visível: {embed}")
 
-      preenche_folha_ponto(driver, clientes[i])
-      downloads_antigos = listagem_arquivos_downloads()
-      folha_de_ponto = download_folha_ponto(driver, clientes[i])
-
+      folha_de_ponto = preenche_folha_ponto(driver, clientes[i])
       driver.get(prev_url)
 
       if folha_de_ponto:
+        arquivos_download = listagem_arquivos_downloads()
+        arquivo_mais_recente = max(arquivos_download, key=os.path.getmtime)
         sleep(PAGE_TIMEOUT)
-        downloads_novos = listagem_arquivos_downloads()
-        arquivos_renomear = list(set(downloads_novos) - set(downloads_antigos))
-        if len(arquivos_renomear) > 0:
-          rename_files(arquivos_renomear[0], f"Folha de Ponto - {clientes[i]}")
+        arquivo_mais_recente = rename_files(arquivo_mais_recente, f"Folha de Ponto - {clientes[i]}")
     
     input()
     driver.quit()
