@@ -11,7 +11,10 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from time import sleep
-from datetime import date, timedelta
+from datetime import date, datetime
+import tkinter as tk
+from components.importacao_caixa_dialogo_inicio_fim import DialogBox
+from components.enviar_emails import enviar_email_com_anexos
 
 PAGE_TIMEOUT = 5
 ACTION_TIMEOUT = 1
@@ -20,6 +23,7 @@ load_dotenv()
 
 cnpj_email = os.getenv('SELENIUM_CNPJ_EMAIL')
 cnpj_password = os.getenv('SELENIUM_CNPJ_PASSWORD')
+anexos = []
 
 def procura_elemento(driver, tipo_seletor:str, elemento, tempo_espera=PAGE_TIMEOUT):
   """
@@ -184,19 +188,24 @@ def ir_para_folha_ponto(driver):
     folha_button.click()
     sleep(PAGE_TIMEOUT)
 
-def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, descanso_semanal=True):
+def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: str = 'Todos', saldo_horas=True, descanso_semanal=True):
   try:
     try:
       nome_cliente_input = procura_elemento(driver, 'xpath', """//*[@id="mat-input-2"]""")
       if(nome_cliente_input):
         nome_cliente_input.click()
-        nome_cliente_input.send_keys(cliente_nome)
-        sleep(5)
+        nome = cliente_nome.strip().split()
+        for index, palavra in enumerate(nome):
+          if index < len(nome) - 1:
+            nome_cliente_input.send_keys(palavra + ' ')
+            sleep(0.1)
+          else:
+            nome_cliente_input.send_keys(palavra)
+            sleep(0.1)
+        #nome_cliente_input.send_keys(cliente_nome)
         clientes_encontrados = procura_todos_elementos(driver, 'class_name', 'select-option-custom')
         if clientes_encontrados:
           for cliente in clientes_encontrados:
-            print(f"{cliente.text.strip().lower()} - {cliente_nome.strip().lower()}")
-            print(cliente.text.lower() == cliente_nome.lower())
             if cliente.text.lower().strip() == cliente_nome.lower().strip():
               print(f"Cliente selecionado: {cliente.text}")
               cliente.click()
@@ -205,6 +214,7 @@ def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, 
                 if(saldo_horas):
                   saldo_horas.click()
               except Exception as e:
+                print(f"Erro ao selecionar saldo de horas: {e}")
                 if isinstance(e, NoSuchElementException):
                   print('Elemento não encontrado')
                 if isinstance(e, TimeoutException):
@@ -215,15 +225,14 @@ def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, 
                 if(descanso_semanal):
                   descanso_semanal.click()
               except Exception as e:
+                print(f"Erro ao selecionar descanso semanal: {e}")
                 if isinstance(e, NoSuchElementException):
                   print('Elemento não encontrado')
                 if isinstance(e, TimeoutException):
                   print('Tempo de espera excedido')
 
               try:
-                start_date = (date.today() - timedelta(days=7)).strftime("%d%m%Y")
-                end_date = date.today().strftime("%d%m%Y")
-                print(f"Preenchendo datas entre {start_date[:2]}/{start_date[2:4]}/{start_date[4:]} a {end_date[:2]}/{end_date[2:4]}/{end_date[4:]}")
+                print(f"Preenchendo datas entre {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} a {datetime.strptime(end_date, '%d%m%Y').strftime("%d/%m/%Y")}")
 
                 start_date_input = procura_elemento(driver, 'id', """datepicker-startDate""")
                 if start_date_input:
@@ -241,6 +250,7 @@ def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, 
                   end_date_input.send_keys(end_date)
                   end_date_input.send_keys(Keys.ESCAPE)
               except Exception as e:
+                print(f"Erro ao preencher datas: {e}")
                 if isinstance(e, NoSuchElementException):
                   print('Elemento não encontrado')
                 if isinstance(e, TimeoutException):
@@ -253,6 +263,7 @@ def preenche_folha_ponto(driver, cliente_nome: str = 'Todos', saldo_horas=True, 
             print("Nenhum cliente encontrado")
             return
     except Exception as e:
+      print(f"Erro ao preencher folha de ponto: {e}")
       if isinstance(e, NoSuchElementException):
         print('Elemento não encontrado')
       if isinstance(e, TimeoutException):
@@ -296,8 +307,8 @@ def download_folha_ponto(driver):
       print('Tempo de espera excedido')
 
 
-def main():
-  datasheet = """H:\\Meu Drive\\15. Arquivos_Automacao\\tangRh\\informacoes-robo-tangrh-correto.xlsx"""
+def gerar_folha(start_date: str, end_date: str, particao: str):
+  datasheet = f"""{particao}:\\Meu Drive\\15. Arquivos_Automacao\\tangRh\\informacoes-robo-tangrh-correto.xlsx"""
   if len(datasheet) > 0:
     chrome_options, service = configura_selenium_driver()
     driver = webdriver.Chrome(options=chrome_options, service=service)
@@ -318,15 +329,15 @@ def main():
         continue
 
       print(f"{i:>6}| {clientes[i]:<60} {na_plataforma[i]} {tem_colaborador[i]} {emails[i]}\n")
+      anexos.clear()
 
       prev_url = driver.current_url
       embed = procura_elemento(driver, 'tag_name', """embed""")
       if embed:
         embed_src = embed.get_attribute('src')
         driver.get(embed_src)
-      print(f"Embed está visível: {embed}")
 
-      folha_de_ponto = preenche_folha_ponto(driver, clientes[i])
+      folha_de_ponto = preenche_folha_ponto(driver, start_date, end_date, clientes[i])
       driver.get(prev_url)
 
       if folha_de_ponto:
@@ -334,8 +345,25 @@ def main():
         arquivo_mais_recente = max(arquivos_download, key=os.path.getmtime)
         sleep(PAGE_TIMEOUT)
         arquivo_mais_recente = rename_files(arquivo_mais_recente, f"Folha de Ponto - {clientes[i]}")
+        anexos.append(arquivo_mais_recente)
+
+        enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {clientes[i]}",
+                                  f"""Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - {datetime.strptime(end_date, '%d%m%Y').strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.\nPor favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.\nSalientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.\nAgradecemos antecipadamente pela sua atenção e colaboração neste processo.""", anexos)
+        os.remove(arquivo_mais_recente)
     
     input()
     driver.quit()
 
-main()
+def main():
+  root = tk.Tk()
+  app = DialogBox(root)
+
+  root.mainloop()
+
+  return app.particao, app.data1, app.data2
+
+if __name__ == "__main__":
+  dropdown, data1, data2 = main()
+  print(f"{datetime.strptime(data1, "%d%m%Y").strftime('%d/%m/%Y')} - {datetime.strptime(data2, "%d%m%Y").strftime('%d/%m/%Y')} - Partição: {dropdown}")
+if data1 and data2 and dropdown:
+  gerar_folha(data1, data2, dropdown)
