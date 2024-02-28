@@ -88,7 +88,6 @@ def rename_files(file, new_name: str = None):
           new_path = f"{os.path.dirname(file)}\\{new_file_name} {today}{extensao}"
           os.rename(file, new_path)
 
-          print(f"Arquivo renomeado para: {new_path}")
           return new_path
     except FileNotFoundError as not_found_error:
         print(f"Arquivo não encontrado: {not_found_error}")
@@ -106,7 +105,6 @@ def find_all_datasheet(directory: str = "C://"):
     """
     # List all files in the directory
     all_files = listagem_arquivos(directory)
-    print(all_files)
 
     # Filter and return Excel datasheet excluding temporary files
     return [file for file in all_files if file.endswith('.xlsx') and not file.startswith('~$')]
@@ -207,7 +205,6 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
         if clientes_encontrados:
           for cliente in clientes_encontrados:
             if cliente.text.lower().strip() == cliente_nome.lower().strip():
-              print(f"Cliente selecionado: {cliente.text}")
               cliente.click()
               try:
                 saldo_horas = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showHours"]/label""")
@@ -232,8 +229,6 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
                   print('Tempo de espera excedido')
 
               try:
-                print(f"Preenchendo datas entre {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} a {datetime.strptime(end_date, '%d%m%Y').strftime("%d/%m/%Y")}")
-
                 start_date_input = procura_elemento(driver, 'id', """datepicker-startDate""")
                 if start_date_input:
                   start_date_input.click()
@@ -282,15 +277,12 @@ def download_folha_ponto(driver):
     if gerar_button:
       gerar_button.click()
       sleep(12)
-      print(f"Downloading...")
       download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""")
       if download_button:
         download_button_class = download_button.get_attribute('class')
         while 'disabled' in download_button_class:
-          print(f"Download button is disabled, refreshing in {PAGE_TIMEOUT} seconds")
           sleep(PAGE_TIMEOUT)
           driver.refresh()
-          print(f"Downloading...")
           sleep(1)
           download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""")
           download_button_class = download_button.get_attribute('class')
@@ -328,7 +320,6 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
       if not tem_colaborador[i]:
         continue
 
-      print(f"{i:>6}| {clientes[i]:<60} {na_plataforma[i]} {tem_colaborador[i]} {emails[i]}\n")
       anexos.clear()
 
       prev_url = driver.current_url
@@ -347,8 +338,15 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
         arquivo_mais_recente = rename_files(arquivo_mais_recente, f"Folha de Ponto - {clientes[i]}")
         anexos.append(arquivo_mais_recente)
 
-        enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {clientes[i]}",
-                                  f"""Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - {datetime.strptime(end_date, '%d%m%Y').strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.\nPor favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.\nSalientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.\nAgradecemos antecipadamente pela sua atenção e colaboração neste processo.""", anexos)
+        enviar_email_com_anexos("mzblannes@outlook.com", f"Folha de Ponto - {clientes[i]}",
+                                  f"""
+                                  Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - 
+                                  {datetime.strptime(end_date, '%d%m%Y').strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
+                                  Por favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. 
+                                  Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.
+                                  Salientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.
+                                  Agradecemos antecipadamente pela sua atenção e colaboração neste processo.
+                                  """, anexos)
         os.remove(arquivo_mais_recente)
     
     input()
@@ -364,6 +362,6 @@ def main():
 
 if __name__ == "__main__":
   dropdown, data1, data2 = main()
-  print(f"{datetime.strptime(data1, "%d%m%Y").strftime('%d/%m/%Y')} - {datetime.strptime(data2, "%d%m%Y").strftime('%d/%m/%Y')} - Partição: {dropdown}")
+
 if data1 and data2 and dropdown:
   gerar_folha(data1, data2, dropdown)
