@@ -1,19 +1,17 @@
 import os
 from components.configuracao_selenium_drive import configura_selenium_driver
 from components.importacao_diretorios_windows import listagem_arquivos, listagem_arquivos_downloads
+from components.procura_elementos_web import procura_elemento, procura_todos_elementos
 import pandas as pd
 from dotenv import load_dotenv
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from time import sleep
-from datetime import date, datetime
+from datetime import datetime
 import tkinter as tk
-from components.importacao_caixa_dialogo_inicio_fim import DialogBox
+from components.importacao_caixa_dialogo import DialogBox
 from components.enviar_emails import enviar_email_com_anexos
 from sys import argv
 from flask import Flask, request
@@ -27,48 +25,6 @@ load_dotenv()
 cnpj_email = os.getenv('SELENIUM_CNPJ_EMAIL')
 cnpj_password = os.getenv('SELENIUM_CNPJ_PASSWORD')
 anexos = []
-
-def procura_elemento(driver, tipo_seletor:str, elemento, tempo_espera=PAGE_TIMEOUT):
-  """
-    Function to search for an element using the specified selector type, element, and wait time.
-    driver: The WebDriver instance to use for element search.
-    tipo_seletor: The type of selector to use (e.g., 'ID', 'CLASS_NAME', 'XPATH', 'TAG_NAME').
-    elemento: The element to search for.
-    tempo_espera: The maximum time to wait for the element to be located.
-    :return: The located element if found, otherwise None.
-  """
-  try:
-    seletor = getattr(By, tipo_seletor.upper())
-    WebDriverWait(driver, float(tempo_espera)).until(EC.presence_of_element_located((seletor, elemento)))
-    sleep(0.1)
-    elemento = WebDriverWait(driver, float(tempo_espera)).until(EC.visibility_of_element_located((seletor, elemento)))
-    if elemento.is_displayed() and elemento.is_enabled():
-      return elemento
-  except TimeoutException:
-    return None
-
-def procura_todos_elementos(driver, tipo_seletor:str, elemento, tempo_espera=PAGE_TIMEOUT):
-  """
-    A function that searches for all elements based on the given selector type and element, within a specified waiting time.
-    
-    Args:
-      driver: The WebDriver instance to use for locating the elements.
-      tipo_seletor: A string representing the type of selector to use (e.g., 'ID', 'CLASS_NAME', 'XPATH', 'TAG_NAME').
-      elemento: The element to search for.
-      tempo_espera: The maximum time to wait for the elements to be present before throwing a TimeoutException.
-      
-    Returns:
-      A list of WebElement objects representing the found elements, or None if the elements are not found within the specified waiting time.
-  """
-  try:
-    seletor = getattr(By, tipo_seletor.upper())
-    WebDriverWait(driver, float(tempo_espera)).until(EC.presence_of_all_elements_located((seletor, elemento)))
-    sleep(0.1)
-    elementos = WebDriverWait(driver, float(tempo_espera)).until(EC.visibility_of_all_elements_located((seletor, elemento)))
-    if elementos:
-      return elementos
-  except TimeoutException:
-    return None
 
 def rename_files(file, new_name: str = None):
     """

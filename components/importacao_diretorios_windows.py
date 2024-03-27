@@ -29,13 +29,6 @@ def listagem_arquivos(diretorio):
     except Exception as exc:
         print(f"Ocorreu alguma falha no processo: {exc}")
 
-def pega_nome(path):
-    try:
-        nome_pasta = os.path.basename(path)
-        return nome_pasta
-    except Exception as exc:
-        print(f"Ocorreu alguma falha no processo: {exc}")
-
 def listagem_arquivos_downloads():
     try:
         downloads = os.path.expanduser("~") + "\\Downloads"
@@ -46,5 +39,33 @@ def listagem_arquivos_downloads():
         return lista_arquivos
     except FileNotFoundError as notFoundError:
         print(notFoundError)
+    except Exception as exc:
+        print(f"Ocorreu alguma falha no processo: {exc}")
+        
+def procura_pasta_cliente(nome, lista_dir_clientes):
+    try:
+        nome = nome.replace("S/S", "S S")
+        caminho_pasta_cliente = None
+        for diretorio in lista_dir_clientes:
+            if not caminho_pasta_cliente == None:
+                break 
+            else:
+                pastas_cliente = listagem_pastas(diretorio)
+                for pasta in pastas_cliente:
+                    if not caminho_pasta_cliente == None:
+                        break 
+                    else:
+                        nome_pasta_cliente = pega_nome(pasta)
+                        if nome_pasta_cliente == nome:
+                            caminho_pasta_cliente = pasta
+                            return caminho_pasta_cliente
+        return caminho_pasta_cliente
+    except Exception as error:
+        print(error)
+        
+def pega_nome(path):
+    try:
+        nome_pasta = os.path.basename(path)
+        return nome_pasta
     except Exception as exc:
         print(f"Ocorreu alguma falha no processo: {exc}")
