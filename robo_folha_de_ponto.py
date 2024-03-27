@@ -15,6 +15,9 @@ from datetime import date, datetime
 import tkinter as tk
 from components.importacao_caixa_dialogo_inicio_fim import DialogBox
 from components.enviar_emails import enviar_email_com_anexos
+from sys import argv
+from flask import Flask, request
+from flask_restful import Resource, Api, reqparse
 
 PAGE_TIMEOUT = 5
 ACTION_TIMEOUT = 1
@@ -177,12 +180,12 @@ def login(driver, email: str, password: str):
       print('Tempo de espera excedido')
 
 def ir_para_folha_ponto(driver):
-  relatorio_button = procura_elemento(driver, 'xpath', """//*[@id="id31"]""")
+  relatorio_button = procura_elemento(driver, 'xpath', """//*[@id="idc"]/nav[2]/ul/li[5]/div""")
   if relatorio_button:
     actions = ActionChains(driver)
     actions.move_to_element(relatorio_button).perform()
     sleep(ACTION_TIMEOUT)
-    folha_button = procura_elemento(driver, 'xpath', """//*[@id="id34"]""")
+    folha_button = procura_elemento(driver, 'xpath', """//*[@id="id39"]""")
     folha_button.click()
     sleep(PAGE_TIMEOUT)
 
@@ -312,7 +315,7 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
 
     login(driver, cnpj_email, cnpj_password)
     ir_para_folha_ponto(driver)
-
+    
     for i in range(len(clientes)):
       if not na_plataforma[i]:
         continue
@@ -338,10 +341,10 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
         arquivo_mais_recente = rename_files(arquivo_mais_recente, f"Folha de Ponto - {clientes[i]}")
         anexos.append(arquivo_mais_recente)
 
-        enviar_email_com_anexos("mzblannes@outlook.com", f"Folha de Ponto - {clientes[i]}",
+        enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {clientes[i]}",
                                   f"""
                                   Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - 
-                                  {datetime.strptime(end_date, '%d%m%Y').strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
+                                  {datetime.strptime(end_date, "%d%m%Y").strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
                                   Por favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. 
                                   Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.
                                   Salientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.
@@ -349,8 +352,8 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
                                   """, anexos)
         os.remove(arquivo_mais_recente)
     
-    input()
     driver.quit()
+    return True
 
 def main():
   root = tk.Tk()
@@ -360,8 +363,41 @@ def main():
 
   return app.particao, app.data1, app.data2
 
-if __name__ == "__main__":
-  dropdown, data1, data2 = main()
+app = Flask(__name__)
+api = Api(app)
 
-if data1 and data2 and dropdown:
-  gerar_folha(data1, data2, dropdown)
+class execute(Resource):
+  def post(self):
+    # Verifique se todos os campos obrigatórios foram fornecidos no JSON
+    parser = reqparse.RequestParser()
+    parser.add_argument('Robo Folha de Ponto - Particao', required=True)
+    parser.add_argument('Robo Folha de Ponto - Data Inicial', required=True)
+    parser.add_argument('Robo Folha de Ponto - Data Final', required=True)
+    json_data = parser.parse_args()
+
+    # Se todos os campos estiverem presentes, prossiga com a execução do programa
+    particao = json_data['Robo Folha de Ponto - Particao']
+    data1 = json_data['Robo Folha de Ponto - Data Inicial']
+    data2 = json_data['Robo Folha de Ponto - Data Final']
+
+    print(f"Partição: {particao}")
+    print(f"Data 1: {data1}")
+    print(f"Data 2: {data2}")
+    data1 = ''.join(reversed(data1.split('-')))
+    data2 = ''.join(reversed(data2.split('-')))
+    sucesso = gerar_folha(data1, data2, particao)
+
+    if sucesso:
+      return {'message': 'Folha de ponto gerada com sucesso'}, 200
+    else:
+      return {'message': 'Erro ao gerar folha de ponto'}, 500
+
+class shutdown(Resource):
+  def post(self):
+    os._exit(0)
+
+api.add_resource(execute, '/')
+api.add_resource(shutdown, '/shutdown')
+
+#if __name__ == "__main__":
+app.run(debug=True, port=5000)
