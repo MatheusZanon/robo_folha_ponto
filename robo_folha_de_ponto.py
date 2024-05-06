@@ -340,21 +340,22 @@ api = Api(app)
 
 class execute(Resource):
   def post(self):
+    print("Requisição recebida")
     # Verifique se todos os campos obrigatórios foram fornecidos no JSON
     parser = reqparse.RequestParser()
-    parser.add_argument('Robo Folha de Ponto - Particao', required=True)
     parser.add_argument('Robo Folha de Ponto - Data Inicial', required=True)
     parser.add_argument('Robo Folha de Ponto - Data Final', required=True)
+    parser.add_argument('Robo Folha de Ponto - Particao', required=True)
     json_data = parser.parse_args()
 
     # Se todos os campos estiverem presentes, prossiga com a execução do programa
-    particao = json_data['Robo Folha de Ponto - Particao']
     data1 = json_data['Robo Folha de Ponto - Data Inicial']
     data2 = json_data['Robo Folha de Ponto - Data Final']
+    particao = json_data['Robo Folha de Ponto - Particao']
 
-    print(f"Partição: {particao}")
     print(f"Data 1: {data1}")
     print(f"Data 2: {data2}")
+    print(f"Partição: {particao}")
     data1 = ''.join(reversed(data1.split('-')))
     data2 = ''.join(reversed(data2.split('-')))
     sucesso = gerar_folha(data1, data2, particao)
