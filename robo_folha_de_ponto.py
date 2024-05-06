@@ -16,6 +16,7 @@ from components.enviar_emails import enviar_email_com_anexos
 from sys import argv
 from flask import Flask, request
 from flask_restful import Resource, Api, reqparse
+import textwrap
 
 PAGE_TIMEOUT = 5
 ACTION_TIMEOUT = 1
@@ -120,9 +121,9 @@ def get_from_datasheet(datasheet: str = """C://""", data: str = None):
 def login(driver, email: str, password: str):
   try:
     driver.get("https://app.tangerino.com.br/Tangerino/pages/LoginPage")
-    email_input = procura_elemento(driver, 'xpath', """//*[@id="id4"]""")
-    password_input = procura_elemento(driver, 'xpath', """//*[@id="id8"]""")
-    login_button = procura_elemento(driver, 'xpath', """//*[@id="id9"]""")
+    email_input = procura_elemento(driver, 'xpath', """//*[@id="id4"]""", PAGE_TIMEOUT)
+    password_input = procura_elemento(driver, 'xpath', """//*[@id="id8"]""", PAGE_TIMEOUT)
+    login_button = procura_elemento(driver, 'xpath', """//*[@id="id9"]""", PAGE_TIMEOUT)
 
     email_input.send_keys(email)
     password_input.send_keys(password)
@@ -136,19 +137,19 @@ def login(driver, email: str, password: str):
       print('Tempo de espera excedido')
 
 def ir_para_folha_ponto(driver):
-  relatorio_button = procura_elemento(driver, 'xpath', """//*[@id="idc"]/nav[2]/ul/li[5]/div""")
+  relatorio_button = procura_elemento(driver, 'xpath', """//*[@id="idc"]/nav[2]/ul/li[5]/div""", PAGE_TIMEOUT)
   if relatorio_button:
     actions = ActionChains(driver)
     actions.move_to_element(relatorio_button).perform()
     sleep(ACTION_TIMEOUT)
-    folha_button = procura_elemento(driver, 'xpath', """//*[@id="id39"]""")
+    folha_button = procura_elemento(driver, 'xpath', """//*[@id="id39"]""", PAGE_TIMEOUT)
     folha_button.click()
     sleep(PAGE_TIMEOUT)
 
 def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: str = 'Todos', saldo_horas=True, descanso_semanal=True):
   try:
     try:
-      nome_cliente_input = procura_elemento(driver, 'xpath', """//*[@id="mat-input-2"]""")
+      nome_cliente_input = procura_elemento(driver, 'xpath', """//*[@id="mat-input-2"]""", PAGE_TIMEOUT)
       if(nome_cliente_input):
         nome_cliente_input.click()
         nome = cliente_nome.strip().split()
@@ -160,13 +161,13 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
             nome_cliente_input.send_keys(palavra)
             sleep(0.1)
         #nome_cliente_input.send_keys(cliente_nome)
-        clientes_encontrados = procura_todos_elementos(driver, 'class_name', 'select-option-custom')
+        clientes_encontrados = procura_todos_elementos(driver, 'class_name', 'select-option-custom', PAGE_TIMEOUT)
         if clientes_encontrados:
           for cliente in clientes_encontrados:
             if cliente.text.lower().strip() == cliente_nome.lower().strip():
               cliente.click()
               try:
-                saldo_horas = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showHours"]/label""")
+                saldo_horas = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showHours"]/label""", PAGE_TIMEOUT)
                 if(saldo_horas):
                   saldo_horas.click()
               except Exception as e:
@@ -177,7 +178,7 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
                   print('Tempo de espera excedido')
 
               try:
-                descanso_semanal = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showDsr"]/label""")
+                descanso_semanal = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showDsr"]/label""", PAGE_TIMEOUT)
                 if(descanso_semanal):
                   descanso_semanal.click()
               except Exception as e:
@@ -188,7 +189,7 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
                   print('Tempo de espera excedido')
 
               try:
-                start_date_input = procura_elemento(driver, 'id', """datepicker-startDate""")
+                start_date_input = procura_elemento(driver, 'id', """datepicker-startDate""", PAGE_TIMEOUT)
                 if start_date_input:
                   start_date_input.click()
                   start_date_input.send_keys(Keys.CONTROL + 'A')
@@ -196,7 +197,7 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
                   start_date_input.send_keys(start_date)
                   start_date_input.send_keys(Keys.ESCAPE)
 
-                end_date_input = procura_elemento(driver, 'id', """datepicker-endDate""")
+                end_date_input = procura_elemento(driver, 'id', """datepicker-endDate""", PAGE_TIMEOUT)
                 if end_date_input:
                   end_date_input.click()
                   end_date_input.send_keys(Keys.CONTROL + 'A')
@@ -232,23 +233,27 @@ def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: s
 
 def download_folha_ponto(driver):
   try:
-    gerar_button = procura_elemento(driver, 'xpath', """//*[@id="btn-generate-simple"]""")
+    gerar_button = procura_elemento(driver, 'xpath', """//*[@id="btn-generate-simple"]""", PAGE_TIMEOUT)
     if gerar_button:
       gerar_button.click()
       sleep(12)
-      download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""")
+      download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""", PAGE_TIMEOUT)
       if download_button:
         download_button_class = download_button.get_attribute('class')
         while 'disabled' in download_button_class:
           sleep(PAGE_TIMEOUT)
           driver.refresh()
           sleep(1)
-          download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""")
+          download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""", PAGE_TIMEOUT)
           download_button_class = download_button.get_attribute('class')
+          message = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[7]/span""", PAGE_TIMEOUT).text
+          if message.strip() == 'Erro no processamento!':
+            print('Erro ao baixar folha de ponto')
+            break
 
         if not 'disabled' in download_button_class:
           download_button.click()
-          folha_ponto_name = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[2]""").text
+          folha_ponto_name = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[2]""", PAGE_TIMEOUT).text
           return folha_ponto_name
         
   except Exception as e:
@@ -257,6 +262,18 @@ def download_folha_ponto(driver):
     if isinstance(e, TimeoutException):
       print('Tempo de espera excedido')
 
+# Função para formatar o corpo do e-mail
+def format_email_body(body: str) -> str:
+    # Dividir os parágrafos em cada ponto seguido por um espaço
+    paragrafos = body.strip().split('\n')
+    
+    # Adicionar tabulação no início de cada parágrafo
+    paragrafos_com_tabulacao = [f"\t{paragrafo.strip()}" for paragrafo in paragrafos if paragrafo.strip()]
+
+    # Adicionar quebra de linha dupla entre parágrafos
+    email_body_formatado = "\n\n".join(paragrafos_com_tabulacao)
+
+    return email_body_formatado
 
 def gerar_folha(start_date: str, end_date: str, particao: str):
   datasheet = f"""{particao}:\\Meu Drive\\15. Arquivos_Automacao\\tangRh\\informacoes-robo-tangrh-correto.xlsx"""
@@ -282,7 +299,7 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
       anexos.clear()
 
       prev_url = driver.current_url
-      embed = procura_elemento(driver, 'tag_name', """embed""")
+      embed = procura_elemento(driver, 'tag_name', """embed""", PAGE_TIMEOUT)
       if embed:
         embed_src = embed.get_attribute('src')
         driver.get(embed_src)
@@ -297,15 +314,14 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
         arquivo_mais_recente = rename_files(arquivo_mais_recente, f"Folha de Ponto - {clientes[i]}")
         anexos.append(arquivo_mais_recente)
 
-        enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {clientes[i]}",
-                                  f"""
-                                  Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - 
-                                  {datetime.strptime(end_date, "%d%m%Y").strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
+        email_body = format_email_body(f"""
+                                  Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - {datetime.strptime(end_date, "%d%m%Y").strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
                                   Por favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. 
                                   Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.
                                   Salientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.
                                   Agradecemos antecipadamente pela sua atenção e colaboração neste processo.
-                                  """, anexos)
+                                  """)
+        enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {clientes[i]}", email_body, anexos)
         os.remove(arquivo_mais_recente)
     
     driver.quit()
