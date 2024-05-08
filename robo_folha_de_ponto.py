@@ -311,14 +311,6 @@ def gerar_folha(start_date: str, end_date: str, particao: str):
     driver.quit()
     return True
 
-def main():
-  root = tk.Tk()
-  app = DialogBox(root)
-
-  root.mainloop()
-
-  return app.particao, app.data1, app.data2
-
 app = Flask(__name__)
 api = Api(app)
 
@@ -356,5 +348,5 @@ class shutdown(Resource):
 api.add_resource(execute, '/')
 api.add_resource(shutdown, '/shutdown')
 
-#if __name__ == "__main__":
-app.run(debug=True, port=5000)
+if __name__ == "__main__":
+  app.run(debug=True, port=5000)
