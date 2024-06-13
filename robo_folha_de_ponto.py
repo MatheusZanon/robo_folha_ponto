@@ -2,6 +2,9 @@ import os
 from components.configuracao_selenium_drive import configura_selenium_driver
 from components.importacao_diretorios_windows import listagem_arquivos, listagem_arquivos_downloads
 from components.procura_elementos_web import procura_elemento, procura_todos_elementos
+from components.configuracao_db import configura_db, ler_sql
+import mysql.connector
+from components.procura_cliente import procura_cliente_mod
 import pandas as pd
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -9,365 +12,327 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from time import sleep
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import tkinter as tk
 from components.importacao_caixa_dialogo import DialogBox
 from components.enviar_emails import enviar_email_com_anexos
 from sys import argv
 from flask import Flask, request
 from flask_restful import Resource, Api, reqparse
+from enum import Enum
+import os, requests, json, base64, platform, pytz
+from winreg import OpenKey, QueryValueEx, HKEY_CURRENT_USER
+from shutil import copy
+from typing import Literal
 import textwrap
 
 PAGE_TIMEOUT = 5
 ACTION_TIMEOUT = 1
 
-load_dotenv()
-
 cnpj_email = os.getenv('SELENIUM_CNPJ_EMAIL')
 cnpj_password = os.getenv('SELENIUM_CNPJ_PASSWORD')
 anexos = []
 
-def rename_files(file, new_name: str = None):
-    """
-    Renomeia um arquivo mantendo a mesma extensão.
+# ================= CARREGANDO VARIÁVEIS DE AMBIENTE=======================
+load_dotenv()
 
-    arquivo: O caminho do arquivo que será renomeado.
-    novo_nome: O novo nome para o arquivo (sem a extensão).
-    Se não for fornecido, o arquivo será renomeado mantendo o nome original.
-    """
-    try:
-        # Divida o nome do arquivo e sua extensão
-        nome_arquivo, extensao = os.path.splitext(file)
-        if extensao == '.pdf':
-          # Se um novo nome for fornecido, use-o. Caso contrário, mantenha o nome original
-          new_file_name = new_name if new_name else nome_arquivo
+# =====================CONFIGURAÇÂO DO BANCO DE DADOS======================
+db_conf = configura_db()
 
-          today = pd.Timestamp.today().strftime('%d-%m-%Y')
+# ============================ AUXILIARES =================================
 
-          # Renomeie o arquivo com o novo nome e a mesma extensão
-          new_path = f"{os.path.dirname(file)}\\{new_file_name} {today}{extensao}"
-          os.rename(file, new_path)
+VALID_TIMEZONES = {
+    'UTC-12': -12, 'UTC-11': -11, 'UTC-10': -10, 'UTC-9': -9,
+    'UTC-8': -8, 'UTC-7': -7, 'UTC-6': -6, 'UTC-5': -5,
+    'UTC-4': -4, 'UTC-3': -3, 'UTC-2': -2, 'UTC-1': -1,
+    'UTC+0': 0, 'UTC+1': 1, 'UTC+2': 2, 'UTC+3': 3,
+    'UTC+4': 4, 'UTC+5': 5, 'UTC+6': 6, 'UTC+7': 7,
+    'UTC+8': 8, 'UTC+9': 9, 'UTC+10': 10, 'UTC+11': 11,
+    'UTC+12': 12, 'UTC+13': 13, 'UTC+14': 14
+}
 
-          return new_path
-    except FileNotFoundError as not_found_error:
-        print(f"Arquivo não encontrado: {not_found_error}")
-    except Exception as exc:
-        print(f"Ocorreu um erro ao renomear o arquivo: {exc}")
+TimeZoneStr = Literal[
+    'UTC-12', 'UTC-11', 'UTC-10', 'UTC-9', 'UTC-8', 'UTC-7', 'UTC-6', 'UTC-5',
+    'UTC-4', 'UTC-3', 'UTC-2', 'UTC-1', 'UTC+0', 'UTC+1', 'UTC+2', 'UTC+3',
+    'UTC+4', 'UTC+5', 'UTC+6', 'UTC+7', 'UTC+8', 'UTC+9', 'UTC+10', 'UTC+11',
+    'UTC+12', 'UTC+13', 'UTC+14'
+]
 
-def find_all_datasheet(directory: str = "C://"):
-    """Find all Excel datasheet in the given directory.
-
-    Args:
-        directory: The path to the directory to search for Excel datasheet.
-
-    Returns:
-        A list of file paths to all found datasheet, or an empty list if no datasheet are found.
-    """
-    # List all files in the directory
-    all_files = listagem_arquivos(directory)
-
-    # Filter and return Excel datasheet excluding temporary files
-    return [file for file in all_files if file.endswith('.xlsx') and not file.startswith('~$')]
-
-def get_from_datasheet_raw(datasheet: str = "C://", data: str = None):
-    """Extracts raw data from Excel datasheet in the specified directory.
-
-    Args:
-        path: The directory path where Excel datasheet are located.
-        data: The specific column name to extract data from.
-
-    Returns:
-        A list containing the data from the specified column across all datasheet.
-    """
-    extracted_data = []
-    df = pd.read_excel(datasheet)
-    if data in df.columns:
-      for value in df[data].tolist():
-        if isinstance(value, str) and value != 'nan':
-          extracted_data.append(value)
-
-    return extracted_data
-
-def get_from_datasheet(datasheet: str = """C://""", data: str = None):
-  base_data = get_from_datasheet_raw(datasheet, data)
-  ret = []
-
-  if data == 'email para envio':
-    for i in range(len(base_data)):
-      if isinstance(base_data[i], str):
-        ret.append(base_data[i].strip().split(','))
-    return ret
-  
-  if data == 'Clientes':
-    for i in range(len(base_data)):
-      if isinstance(base_data[i], str):
-        if isinstance(base_data[i], str):
-          if base_data[i].strip().lower() == 's':
-            ret.append(True)
-          elif base_data[i].strip().lower() == 'n':
-            ret.append(False)
-    return ret
-  
-  if data == 'Colaboradores':
-    for i in range(len(base_data)):
-      if isinstance(base_data[i], str):
-        if isinstance(base_data[i], str):
-          if base_data[i].strip().lower() == 's':
-            ret.append(True)
-          elif base_data[i].strip().lower() == 'n':
-            ret.append(False)
-    return ret
-
-def login(driver, email: str, password: str):
-  try:
-    driver.get("https://app.tangerino.com.br/Tangerino/pages/LoginPage")
-    email_input = procura_elemento(driver, 'xpath', """//*[@id="id4"]""", PAGE_TIMEOUT)
-    password_input = procura_elemento(driver, 'xpath', """//*[@id="id8"]""", PAGE_TIMEOUT)
-    login_button = procura_elemento(driver, 'xpath', """//*[@id="id9"]""", PAGE_TIMEOUT)
-
-    email_input.send_keys(email)
-    password_input.send_keys(password)
-    login_button.click()
-
-    sleep(PAGE_TIMEOUT)
-  except Exception as e:
-    if isinstance(e, NoSuchElementException):
-      print('Elemento não encontrado')
-    if isinstance(e, TimeoutException):
-      print('Tempo de espera excedido')
-
-def ir_para_folha_ponto(driver):
-  relatorio_button = procura_elemento(driver, 'xpath', """//*[@id="idc"]/nav[2]/ul/li[5]/div""", PAGE_TIMEOUT)
-  if relatorio_button:
-    actions = ActionChains(driver)
-    actions.move_to_element(relatorio_button).perform()
-    sleep(ACTION_TIMEOUT)
-    folha_button = procura_elemento(driver, 'xpath', """//*[@id="id39"]""", PAGE_TIMEOUT)
-    folha_button.click()
-    sleep(PAGE_TIMEOUT)
-
-def preenche_folha_ponto(driver, start_date: str, end_date: str, cliente_nome: str = 'Todos', saldo_horas=True, descanso_semanal=True):
-  try:
-    try:
-      nome_cliente_input = procura_elemento(driver, 'xpath', """//*[@id="mat-input-2"]""", PAGE_TIMEOUT)
-      if(nome_cliente_input):
-        nome_cliente_input.click()
-        nome = cliente_nome.strip().split()
-        for index, palavra in enumerate(nome):
-          if index < len(nome) - 1:
-            nome_cliente_input.send_keys(palavra + ' ')
-            sleep(0.1)
-          else:
-            nome_cliente_input.send_keys(palavra)
-            sleep(0.1)
-        #nome_cliente_input.send_keys(cliente_nome)
-        clientes_encontrados = procura_todos_elementos(driver, 'class_name', 'select-option-custom', PAGE_TIMEOUT)
-        if clientes_encontrados:
-          for cliente in clientes_encontrados:
-            if cliente.text.lower().strip() == cliente_nome.lower().strip():
-              cliente.click()
-              try:
-                saldo_horas = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showHours"]/label""", PAGE_TIMEOUT)
-                if(saldo_horas):
-                  saldo_horas.click()
-              except Exception as e:
-                print(f"Erro ao selecionar saldo de horas: {e}")
-                if isinstance(e, NoSuchElementException):
-                  print('Elemento não encontrado')
-                if isinstance(e, TimeoutException):
-                  print('Tempo de espera excedido')
-
-              try:
-                descanso_semanal = procura_elemento(driver, 'xpath', """//*[@id="checkbox-showDsr"]/label""", PAGE_TIMEOUT)
-                if(descanso_semanal):
-                  descanso_semanal.click()
-              except Exception as e:
-                print(f"Erro ao selecionar descanso semanal: {e}")
-                if isinstance(e, NoSuchElementException):
-                  print('Elemento não encontrado')
-                if isinstance(e, TimeoutException):
-                  print('Tempo de espera excedido')
-
-              try:
-                start_date_input = procura_elemento(driver, 'id', """datepicker-startDate""", PAGE_TIMEOUT)
-                if start_date_input:
-                  start_date_input.click()
-                  start_date_input.send_keys(Keys.CONTROL + 'A')
-                  start_date_input.send_keys(Keys.DELETE)
-                  start_date_input.send_keys(start_date)
-                  start_date_input.send_keys(Keys.ESCAPE)
-
-                end_date_input = procura_elemento(driver, 'id', """datepicker-endDate""", PAGE_TIMEOUT)
-                if end_date_input:
-                  end_date_input.click()
-                  end_date_input.send_keys(Keys.CONTROL + 'A')
-                  end_date_input.send_keys(Keys.DELETE)
-                  end_date_input.send_keys(end_date)
-                  end_date_input.send_keys(Keys.ESCAPE)
-              except Exception as e:
-                print(f"Erro ao preencher datas: {e}")
-                if isinstance(e, NoSuchElementException):
-                  print('Elemento não encontrado')
-                if isinstance(e, TimeoutException):
-                  print('Tempo de espera excedido')
-              
-              folha_de_ponto = download_folha_ponto(driver)
-              sleep(2)               
-              return folha_de_ponto
-          else:
-            print("Nenhum cliente encontrado")
-            return
-    except Exception as e:
-      print(f"Erro ao preencher folha de ponto: {e}")
-      if isinstance(e, NoSuchElementException):
-        print('Elemento não encontrado')
-      if isinstance(e, TimeoutException):
-        print(f"Tempo de espera excedido {e.msg}\n{e.stacktrace}")
-
-  except Exception as e:
-    print(f"Erro ao preencher folha de ponto: {e}")
-    if isinstance(e, NoSuchElementException):
-      print('Elemento não encontrado')
-    if isinstance(e, TimeoutException):
-      print(f"Tempo de espera excedido {e.msg}\n{e.stacktrace}")
-
-def download_folha_ponto(driver):
-  try:
-    gerar_button = procura_elemento(driver, 'xpath', """//*[@id="btn-generate-simple"]""", PAGE_TIMEOUT)
-    if gerar_button:
-      gerar_button.click()
-      sleep(12)
-      download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""", PAGE_TIMEOUT)
-      if download_button:
-        download_button_class = download_button.get_attribute('class')
-        while 'disabled' in download_button_class:
-          sleep(PAGE_TIMEOUT)
-          driver.refresh()
-          sleep(1)
-          download_button = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[1]/a""", PAGE_TIMEOUT)
-          download_button_class = download_button.get_attribute('class')
-          message = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[7]/span""", PAGE_TIMEOUT).text
-          if message.strip() == 'Erro no processamento!':
-            print('Erro ao baixar folha de ponto')
-            break
-
-        if not 'disabled' in download_button_class:
-          download_button.click()
-          folha_ponto_name = procura_elemento(driver, 'xpath', """/html/body/app-root/app-report-time-sheet/div/section/div[4]/table/tbody/tr[1]/td[2]""", PAGE_TIMEOUT).text
-          return folha_ponto_name
+def get_download_path():
+    """Returns the default downloads path for Linux, MacOS, or Windows."""
+    if platform.system() == 'Windows':
+        from winreg import OpenKey, QueryValueEx, HKEY_CURRENT_USER
         
-  except Exception as e:
-    if isinstance(e, NoSuchElementException):
-      print('Elemento não encontrado')
-    if isinstance(e, TimeoutException):
-      print('Tempo de espera excedido')
+        sub_key = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
+        downloads_guid = '{374DE290-123F-4565-9164-39C4925E467B}'
+        
+        with OpenKey(HKEY_CURRENT_USER, sub_key) as key:
+            downloads_path = QueryValueEx(key, downloads_guid)[0]
+        
+        return str(downloads_path)
+    
+    else:
+        from pathlib import Path
+        
+        return str(Path.home() / 'Downloads')
+
+def copia_folha_baixada(nome_cliente, mes, ano, pasta_cliente):
+    try:
+        arquivos_downloads = listagem_arquivos_downloads()
+        arquivo_mais_recente = max(arquivos_downloads, key=os.path.getmtime)
+        if (arquivo_mais_recente.__contains__(".pdf") 
+            and not arquivo_mais_recente.__contains__(f"Boleto_Recebimento_{nome_cliente.replace("S/S", "S S")}_{ano}.{mes}")):
+            caminho_pdf = os.Path(arquivo_mais_recente)
+            novo_nome_boleto = caminho_pdf.with_name(f"Boleto_Recebimento_{nome_cliente.replace("S/S", "S S")}_{ano}.{mes}.pdf")
+            caminho_pdf_mod = caminho_pdf.rename(novo_nome_boleto)
+            sleep(0.5)
+            copy(caminho_pdf_mod, pasta_cliente / caminho_pdf_mod.name)
+            if os.path.exists(caminho_pdf_mod):
+                os.remove(caminho_pdf_mod)
+            else:
+                print("Arquivo nao encontrado no caminho para remocão!")
+        else:
+            print("Arquivo de boleto não encontrado!")
+    except Exception as error:
+        print(f"Erro ao copiar o arquivo: {error}")
+        input("Pressione ENTER para sair...")
+
+def convert_datetimes(data):
+		"""
+		Converts datetime values in the input data dictionary to a specific string format.
+		
+		Args:
+			data (dict): A dictionary with key-value pairs to be converted.
+		
+		Returns:
+			dict: The data dictionary with datetime values converted to the specified string format.
+		"""
+		for key, value in data.items():
+			if isinstance(value, datetime):
+				data[key] = value.strftime('%Y-%m-%dT%H:%M:%S')
+		return data
+
+def row_to_dict(row, column_names):
+	"""
+	Creates a dictionary from the input 'row' and 'column_names' by zipping them together.
+	
+	Args:
+		row (iterable): The row to be converted into a dictionary.
+		column_names (iterable): The names of the columns to be used as keys in the dictionary.
+	
+	Returns:
+		dict: A dictionary where 'column_names' are keys and 'row' values are values.
+	"""
+	return dict(zip(column_names, row))
+
+def process_clientes(clientes, column_names):
+	clientes_dicts = []
+	for cliente in clientes:
+		cliente_dict = row_to_dict(cliente, column_names)
+		cliente_dict = convert_datetimes(cliente_dict)
+		clientes_dicts.append(cliente_dict)
+	return clientes_dicts
+
+def formatCNPJ(self, cnpj):
+	"""
+	Method to format cnpj numbers.
+	Tests:
+	
+	>>> print Cnpj().format('53612734000198')
+	>>> 53.612.734/0001-98
+	"""
+	return "%s.%s.%s/%s-%s" % ( cnpj[0:2], cnpj[2:5], cnpj[5:8], cnpj[8:12], cnpj[12:14] )
+
+# ============================ FUNÇOES ====================================
+
+def unix_time_millis(dt_str, tz_str: TimeZoneStr = 'UTC+0'):
+	# Converte a string para um objeto datetime
+    dt = datetime.strptime(dt_str, "%Y-%m-%d")
+    
+    # Define o fuso horário especificado pelo offset em horas
+    offset_hours = VALID_TIMEZONES[tz_str]
+    offset = timezone(timedelta(hours=offset_hours))
+    dt = dt.replace(tzinfo=offset)
+    
+    # Converte o datetime para UTC
+    dt_utc = dt.astimezone(timezone.utc)
+    
+    # Define a época (1970-01-01 00:00:00 UTC)
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    
+    # Calcula a diferença em milissegundos
+    return int((dt_utc - epoch).total_seconds() * 1000)
+
+def consultar_empresa_por_razao_social(razao_social):
+	"""
+	Procura uma empresa por razão social.
+	"""
+	TANGERINO_API_BASE_URL = os.getenv('TANGERINO_API_BASE_URL')
+	TANGERINO_API_TOKEN = os.getenv('TANGERINO_API_TOKEN')
+
+	headers = {
+		'Authorization': f'Basic {TANGERINO_API_TOKEN}',
+		'Content-Type': 'application/json'
+	}
+
+	try:
+		response = requests.get(f"{TANGERINO_API_BASE_URL}/employer/companies/filter?socialReason={razao_social}", headers=headers)
+
+		if response.status_code == 200:
+			empresas_data = response.json()[0]
+			return empresas_data
+		else:
+			return None
+	except Exception as e:
+		print(e)
+		input()
+
+def baixar_folha_de_ponto(empresa: dict, data_inicial, data_final):
+	"""
+	Baixa uma folha de ponto para uma empresa.
+	"""
+	try:
+		TANGERINO_API_BASE_URL = os.getenv('TANGERINO_API_BASE_URL')
+		TANGERINO_API_TOKEN = os.getenv('TANGERINO_API_TOKEN')
+
+		headers = {
+			'Authorization': f'Basic {TANGERINO_API_TOKEN}',
+			'Content-Type': 'application/json'
+		}
+
+		startDate = unix_time_millis(data_inicial, 'UTC-3')
+		endDate = unix_time_millis(data_final, 'UTC-3')
+
+		data_inicial = datetime.strptime(data_inicial, "%Y-%m-%d")
+		data_final = datetime.strptime(data_final, "%Y-%m-%d")
+		response = requests.get(f"{TANGERINO_API_BASE_URL}/report/time-sheet?companyId={empresa['id']}&employeeStatus=ADMITIDOS&startDate={startDate}&endDate={endDate}&format=PDF", headers=headers)
+
+		if response.status_code == 200:
+			response_data = response.json()
+			file_content = base64.b64decode(response_data['base64FileContent'])
+			with open(f"{get_download_path()}\\Folha de Ponto - {empresa['socialReason'].replace("S/S", "S S")} {data_inicial.strftime('%d-%m-%Y')} - {data_final.strftime('%d-%m-%Y')}.{response_data['fileExtension']}", 'wb') as f:
+				f.write(file_content)
+				return True
+		else:
+			print(f"Erro ao baixar folha de ponto: {response.status_code} - {response.text}")
+			return False
+	except Exception as e:
+		print(e)
+		input()
+		return False
 
 # Função para formatar o corpo do e-mail
 def format_email_body(body: str) -> str:
-    # Dividir os parágrafos em cada ponto seguido por um espaço
-    paragrafos = body.strip().split('\n')
-    
-    # Adicionar tabulação no início de cada parágrafo
-    paragrafos_com_tabulacao = [f"\t{paragrafo.strip()}" for paragrafo in paragrafos if paragrafo.strip()]
+		# Dividir os parágrafos em cada ponto seguido por um espaço
+		paragrafos = body.strip().split('\n')
+		
+		# Adicionar tabulação no início de cada parágrafo
+		paragrafos_com_tabulacao = [f"\t{paragrafo.strip()}" for paragrafo in paragrafos if paragrafo.strip()]
 
-    # Adicionar quebra de linha dupla entre parágrafos
-    email_body_formatado = "\n\n".join(paragrafos_com_tabulacao)
+		# Adicionar quebra de linha dupla entre parágrafos
+		email_body_formatado = "\n\n".join(paragrafos_com_tabulacao)
 
-    return email_body_formatado
+		return email_body_formatado
 
-def gerar_folha(start_date: str, end_date: str, particao: str):
-  datasheet = f"""{particao}:\\Meu Drive\\15. Arquivos_Automacao\\tangRh\\informacoes-robo-tangrh-correto.xlsx"""
-  if len(datasheet) > 0:
-    chrome_options, service = configura_selenium_driver()
-    driver = webdriver.Chrome(options=chrome_options, service=service)
+def gerar_folha(start_date: str, end_date: str):
+	query_procura_clientes_folha = ler_sql('sql/procura_clientes_folha_ponto.sql')
 
-    clientes = get_from_datasheet_raw(datasheet, 'centro de custo')
-    emails = get_from_datasheet(datasheet, 'email para envio')
-    na_plataforma = get_from_datasheet(datasheet, 'Clientes')
-    tem_colaborador = get_from_datasheet(datasheet, 'Colaboradores')
+	try:
+		with mysql.connector.connect(**db_conf) as conn, conn.cursor() as cursor:
+			cursor.execute(query_procura_clientes_folha)
+			clientes = cursor.fetchall()
+			column_names = [desc[0] for desc in cursor.description]  # Obtém os nomes das colunas
+			conn.commit()
+			conn.close()
+		if clientes:
+			quantidade_sucessos = 0
+			clientes_dict = process_clientes(clientes, column_names) # Converte cada linha para um dicionário e converte datetimes
+			for cliente in clientes_dict:
+				empresa_cliente = consultar_empresa_por_razao_social(cliente['nome_razao_social'])
 
-    login(driver, cnpj_email, cnpj_password)
-    ir_para_folha_ponto(driver)
-    
-    for i in range(len(clientes)):
-      if not na_plataforma[i]:
-        continue
+				if not empresa_cliente or empresa_cliente == None:
+					print(f"Cliente [{cliente['nome_razao_social']}] não encontrado na plataforma Tangerino RH")
 
-      if not tem_colaborador[i]:
-        continue
+					if (clientes_dict.index(cliente) + 1) < len(clientes_dict):
+						input("Pressione enter para ir para o proximo cliente")
+						continue
 
-      anexos.clear()
+				if empresa_cliente:
+					sucesso = baixar_folha_de_ponto(empresa_cliente, start_date, end_date)
 
-      prev_url = driver.current_url
-      embed = procura_elemento(driver, 'tag_name', """embed""", PAGE_TIMEOUT)
-      if embed:
-        embed_src = embed.get_attribute('src')
-        driver.get(embed_src)
+					if sucesso:
+						print(f"Sucesso ao baixar folha de ponto para o cliente [{cliente['nome_razao_social']}]")
 
-      folha_de_ponto = preenche_folha_ponto(driver, start_date, end_date, clientes[i])
-      driver.get(prev_url)
+						arquivos_download = listagem_arquivos_downloads()
+						arquivo_mais_recente = max(arquivos_download, key=os.path.getmtime)
 
-      if folha_de_ponto:
-        arquivos_download = listagem_arquivos_downloads()
-        arquivo_mais_recente = max(arquivos_download, key=os.path.getmtime)
-        sleep(PAGE_TIMEOUT)
-        arquivo_mais_recente = rename_files(arquivo_mais_recente, f"Folha de Ponto - {clientes[i]}")
-        anexos.append(arquivo_mais_recente)
+						anexos.append(arquivo_mais_recente)
 
-        email_body = format_email_body(f"""
-                                  Gostaríamos de informar que a folha de ponto referente a {datetime.strptime(start_date, '%d%m%Y').strftime("%d/%m/%Y")} - {datetime.strptime(end_date, "%d%m%Y").strftime("%d/%m/%Y")} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
-                                  Por favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. 
-                                  Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.
-                                  Salientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.
-                                  Agradecemos antecipadamente pela sua atenção e colaboração neste processo.
-                                  """)
-        enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {clientes[i]}", email_body, anexos)
-        os.remove(arquivo_mais_recente)
-    
-    driver.quit()
-    return True
+						start_date = datetime.strptime(start_date, '%Y-%m-%d').strftime("%d/%m/%Y")
+						end_date = datetime.strptime(end_date, '%Y-%m-%d').strftime("%d/%m/%Y")
+						nome_razao_social = empresa_cliente['socialReason']
+
+						email_body = format_email_body(f"""
+												Gostaríamos de informar que a folha de ponto referente a {start_date} - {end_date} foi gerada com sucesso e está disponível para análise e eventual correção, caso necessário.
+												Por favor, acesse {os.path.basename(arquivo_mais_recente)} para visualizar e verificar as informações registradas. 
+												Caso identifique qualquer inconsistência ou discrepância em seu registro, por gentiliza entre em contato imediatamente.
+												Salientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.
+												Agradecemos antecipadamente pela sua atenção e colaboração neste processo.
+												""")
+						enviar_email_com_anexos("bruno.apolinario010@gmail.com", f"Folha de Ponto - {nome_razao_social}", email_body, anexos)
+						os.remove(arquivo_mais_recente)
+						quantidade_sucessos += 1
+				
+					if (clientes_dict.index(cliente) + 1) < len(clientes_dict):
+						print(f"\n{clientes_dict.index(cliente) + 1} / {len(clientes_dict)}")
+
+				if (clientes_dict.index(cliente) + 1) == len(clientes_dict):
+					print(f"\n{quantidade_sucessos} Sucesso(s) de {len(clientes_dict)}")
+					input("Pressione enter para sair")
+					return True
+		else:
+			return None
+	except Exception as e:
+		print(e)
+		input()
 
 def main():
-  root = tk.Tk()
-  app = DialogBox(root)
+	root = tk.Tk()
+	app = DialogBox(root)
 
-  root.mainloop()
+	root.mainloop()
 
-  return app.particao, app.data1, app.data2
+	return app.particao, app.data1, app.data2
 
 app = Flask(__name__)
 api = Api(app)
 
 class execute(Resource):
-  def post(self):
-    print("Requisição recebida")
-    # Verifique se todos os campos obrigatórios foram fornecidos no JSON
-    parser = reqparse.RequestParser()
-    parser.add_argument('Robo Folha de Ponto - Data Inicial', required=True)
-    parser.add_argument('Robo Folha de Ponto - Data Final', required=True)
-    parser.add_argument('Robo Folha de Ponto - Particao', required=True)
-    json_data = parser.parse_args()
+	def post(self):
+		print("Requisição recebida")
+		# Verifique se todos os campos obrigatórios foram fornecidos no JSON
+		parser = reqparse.RequestParser()
+		parser.add_argument('Robo Folha de Ponto - Data Inicial', required=True)
+		parser.add_argument('Robo Folha de Ponto - Data Final', required=True)
+		json_data = parser.parse_args()
 
-    # Se todos os campos estiverem presentes, prossiga com a execução do programa
-    data1 = json_data['Robo Folha de Ponto - Data Inicial']
-    data2 = json_data['Robo Folha de Ponto - Data Final']
-    particao = json_data['Robo Folha de Ponto - Particao']
+		# Se todos os campos estiverem presentes, prossiga com a execução do programa
+		data1 = json_data['Robo Folha de Ponto - Data Inicial']
+		data2 = json_data['Robo Folha de Ponto - Data Final']
 
-    print(f"Data 1: {data1}")
-    print(f"Data 2: {data2}")
-    print(f"Partição: {particao}")
-    data1 = ''.join(reversed(data1.split('-')))
-    data2 = ''.join(reversed(data2.split('-')))
-    sucesso = gerar_folha(data1, data2, particao)
+		print(f"Data 1: {data1}")
+		print(f"Data 2: {data2}")
+		
+		sucesso = gerar_folha(data1, data2)
 
-    if sucesso:
-      return {'message': 'Folha de ponto gerada com sucesso'}, 200
-    else:
-      return {'message': 'Erro ao gerar folha de ponto'}, 500
+		if sucesso:
+			return {'message': 'Folha de ponto gerada com sucesso'}, 200
+		else:
+			return {'message': 'Erro ao gerar folha de ponto'}, 500
 
 class shutdown(Resource):
-  def post(self):
-    os._exit(0)
+	def post(self):
+		os._exit(0)
 
 api.add_resource(execute, '/')
 api.add_resource(shutdown, '/shutdown')
