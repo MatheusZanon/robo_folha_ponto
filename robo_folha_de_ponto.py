@@ -302,9 +302,6 @@ class execute(Resource):
 		# Se todos os campos estiverem presentes, prossiga com a execução do programa
 		data1 = json_data['Robo Folha de Ponto - Data Inicial']
 		data2 = json_data['Robo Folha de Ponto - Data Final']
-
-		print(f"Data 1: {data1}")
-		print(f"Data 2: {data2}")
 		
 		sucesso = gerar_folha(data1, data2)
 
