@@ -95,22 +95,21 @@ def copia_folha_baixada(nome_cliente, mes, ano, pasta_cliente):
             print("Arquivo de boleto não encontrado!")
     except Exception as error:
         print(f"Erro ao copiar o arquivo: {error}")
-        input("Pressione ENTER para sair...")
 
 def convert_datetimes(data):
-		"""
-		Converts datetime values in the input data dictionary to a specific string format.
-		
-		Args:
-			data (dict): A dictionary with key-value pairs to be converted.
-		
-		Returns:
-			dict: The data dictionary with datetime values converted to the specified string format.
-		"""
-		for key, value in data.items():
-			if isinstance(value, datetime):
-				data[key] = value.strftime('%Y-%m-%dT%H:%M:%S')
-		return data
+	"""
+	Converts datetime values in the input data dictionary to a specific string format.
+	
+	Args:
+		data (dict): A dictionary with key-value pairs to be converted.
+	
+	Returns:
+		dict: The data dictionary with datetime values converted to the specified string format.
+	"""
+	for key, value in data.items():
+		if isinstance(value, datetime):
+			data[key] = value.strftime('%Y-%m-%dT%H:%M:%S')
+	return data
 
 def row_to_dict(row, column_names):
 	"""
@@ -185,7 +184,6 @@ def consultar_empresa_por_razao_social(razao_social):
 			return None
 	except Exception as e:
 		print(e)
-		input()
 
 def baixar_folha_de_ponto(empresa: dict, data_inicial, data_final):
 	"""
@@ -218,7 +216,6 @@ def baixar_folha_de_ponto(empresa: dict, data_inicial, data_final):
 			return False
 	except Exception as e:
 		print(e)
-		input()
 		return False
 
 # Função para formatar o corpo do e-mail
@@ -254,7 +251,6 @@ def gerar_folha(start_date: str, end_date: str):
 					print(f"Cliente [{cliente['nome_razao_social']}] não encontrado na plataforma Tangerino RH")
 
 					if (clientes_dict.index(cliente) + 1) < len(clientes_dict):
-						input("Pressione enter para ir para o proximo cliente")
 						continue
 
 				if empresa_cliente:
@@ -283,12 +279,7 @@ def gerar_folha(start_date: str, end_date: str):
 						os.remove(arquivo_mais_recente)
 						quantidade_sucessos += 1
 				
-					if (clientes_dict.index(cliente) + 1) < len(clientes_dict):
-						print(f"\n{clientes_dict.index(cliente) + 1} / {len(clientes_dict)}")
-
 				if (clientes_dict.index(cliente) + 1) == len(clientes_dict):
-					print(f"\n{quantidade_sucessos} Sucesso(s) de {len(clientes_dict)}")
-					input("Pressione enter para sair")
 					return True
 		else:
 			return None
