@@ -1,3 +1,5 @@
 # .gitignore 
 /.venv
 .env
+.zip
+/projeto_aws

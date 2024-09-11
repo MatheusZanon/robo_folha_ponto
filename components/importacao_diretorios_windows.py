@@ -1,7 +1,6 @@
 """IMPORTAÇÃO DE BIBLIOTECA PARA MEXER COM DIRETÓRIOS E ARQUIVOS NO WINDOWS"""
 import os
 from pathlib import Path
-from time import sleep
 
 def listagem_pastas(diretorio):
     try:

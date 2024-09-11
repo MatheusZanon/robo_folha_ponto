@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from components.enviar_emails import enviar_email_com_anexos
 import os, requests, json, base64, platform
 from shutil import copy
-from typing import Literal
+from typing import Literal, Any
 import traceback
 import boto3
 
@@ -220,19 +220,11 @@ def format_email_body(body: str) -> str:
 
 		return email_body_formatado
 
-def gerar_folha(start_date: str, end_date: str):
-	query_procura_clientes_folha = ler_sql('sql/procura_clientes_folha_ponto.sql')
+def gerar_folha(start_date: str, end_date: str, clientes: dict[str, Any], clientes_column_names: list[str]):
 	try:
-		with mysql.connector.connect(**db_conf) as conn, conn.cursor() as cursor:
-			print(f"Conectado ao MySQL? {conn.is_connected()}")
-			cursor.execute(query_procura_clientes_folha)
-			clientes = cursor.fetchall()
-			column_names = [desc[0] for desc in cursor.description]  # Obtém os nomes das colunas
-			conn.commit()
-			conn.close()
 		if clientes:
 			quantidade_sucessos = 0
-			clientes_dict = process_clientes(clientes, column_names) # Converte cada linha para um dicionário e converte datetimes
+			clientes_dict = process_clientes(clientes, clientes_column_names) # Converte cada linha para um dicionário e converte datetimes
 			for cliente in clientes_dict:
 				empresa_cliente = consultar_empresa_por_razao_social(cliente['nome_razao_social'])
 
@@ -284,8 +276,8 @@ def gerar_folha(start_date: str, end_date: str):
   
 def lambda_handler(event, context):
 	try:
-		start_date = "2024-07-01"
-		end_date = "2024-07-07"
+		start_date = event['Robo Folha de Ponto - Data Inicial']
+		end_date = event['Robo Folha de Ponto - Data Final']
 		
 		if not start_date or not end_date:
 			return {'statusCode': 400, 'body': json.dumps({"message": 'Data Inicial ou Data Final ausente'})}

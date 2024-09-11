@@ -1,15 +1,14 @@
+from .aws_parameters import get_ssm_parameter
 import os
-import mysql.connector
-from mysql.connector import errorcode
 
-def configura_db():    
+def configura_db():
     db_conf = {
         "host": os.getenv('DB_HOST'),
         "user": os.getenv('DB_USER'),
-        "password": os.getenv('DB_PASS'),
+        "password": os.getenv('DB_PASSWORD'),
         "database": os.getenv('DB_NAME')
     }
-    
+
     return db_conf
 
 def ler_sql(arquivo_sql):
