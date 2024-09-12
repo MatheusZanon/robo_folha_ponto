@@ -284,8 +284,8 @@ def gerar_folha(start_date: str, end_date: str):
   
 def lambda_handler(event, context):
 	try:
-		start_date = "2024-07-01"
-		end_date = "2024-07-07"
+		start_date = event['Robo Folha de Ponto - Data Inicial']
+		end_date = event['Robo Folha de Ponto - Data Final']
 		
 		if not start_date or not end_date:
 			return {'statusCode': 400, 'body': json.dumps({"message": 'Data Inicial ou Data Final ausente'})}
