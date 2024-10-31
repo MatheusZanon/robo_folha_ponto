@@ -275,7 +275,7 @@ def gerar_folha(start_date: str, end_date: str):
 												Salientamos a importância da verificação cuidadosa dos registros de ponto, a fim de garantir a precisão e integridade das informações relacionadas à jornada de trabalho da sua empresa.
 												Agradecemos antecipadamente pela sua atenção e colaboração neste processo.
 												""")
-						enviar_email_com_anexos("faleconoscorj@human.rh.com.br", f"Folha de Ponto - {nome_razao_social}", email_body, anexos)
+						enviar_email_com_anexos("email.rh.com.br", f"Folha de Ponto - {nome_razao_social}", email_body, anexos)
 						os.remove(arquivo_mais_recente)
 						quantidade_sucessos += 1
 				
